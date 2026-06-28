@@ -2,7 +2,7 @@
 
 > An AI-powered chatbot that answers student questions about VIT Academic Regulations using RAG (Retrieval-Augmented Generation).
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://vira-vit.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ritam03-vira-vit-chatbot-app.streamlit.app)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![Gemini](https://img.shields.io/badge/Powered%20by-Gemini%202.5-4285F4?logo=google)](https://ai.google.dev/)
 [![LangChain](https://img.shields.io/badge/Framework-LangChain-00D4AA)](https://langchain.com/)
@@ -49,8 +49,8 @@ Student Question
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/vira-chatbot.git
-cd vira-chatbot
+git clone https://github.com/ritam03/vira-vit-chatbot.git
+cd vira-vit-chatbot
 
 # 2. Create virtual environment
 python -m venv venv
