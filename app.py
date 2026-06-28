@@ -233,6 +233,16 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
 
+    # Active model card — reads from session_state (populated after engine loads)
+    active_model = st.session_state.get("active_model", "Initializing...")
+    st.markdown(f"""
+    <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);
+                border-radius:10px;padding:0.5rem 0.75rem;margin-top:0.4rem;">
+        <div style="font-size:0.65rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em;">Active Model</div>
+        <div style="font-size:0.78rem;color:#60A5FA;font-weight:500;margin-top:0.1rem;">{active_model}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.divider()
 
     if st.button("Clear Chat", use_container_width=True):
@@ -264,6 +274,10 @@ if "suggested_question" not in st.session_state:
 # === LOAD ENGINE ===
 with st.spinner("Initializing VIRA... (first load takes ~10 seconds)"):
     engine, error = load_vira_engine()
+
+# Update session_state with the current model so the sidebar can read it
+if engine is not None:
+    st.session_state["active_model"] = getattr(engine, "current_model", "gemini-2.5-flash")
 
 
 # === ERROR HANDLING ===
@@ -318,9 +332,13 @@ for msg in st.session_state.messages:
     with st.chat_message(role, avatar=avatar):
         st.markdown(msg["content"])
 
-        # Show source citations for assistant messages
+        # Show source citations + model badge for assistant messages
         if role == "assistant" and msg.get("sources"):
-            with st.expander(f"View {len(msg['sources'])} regulation excerpts used", expanded=False):
+            model_label = msg.get("model_used", "")
+            expander_title = f"View {len(msg['sources'])} regulation excerpts used"
+            if model_label:
+                expander_title += f"  |  {model_label}"
+            with st.expander(expander_title, expanded=False):
                 for i, src in enumerate(msg["sources"], 1):
                     excerpt = src["content"][:450] + ("..." if len(src["content"]) > 450 else "")
                     st.markdown(f"""
@@ -360,28 +378,42 @@ if question and question.strip():
                 result = engine.chat(question=q, chat_history=st.session_state.chat_history)
                 answer = result["answer"]
                 sources = result["sources"]
+                model_used = result.get("model_used", "")
                 elapsed = round(time.time() - start_t, 1)
+                # Keep sidebar model indicator current
+                if model_used:
+                    st.session_state["active_model"] = model_used
+            except ResourceWarning as e:
+                # All 7 models in the cascade are exhausted for the day
+                answer = (
+                    "**Daily Limit Reached Across All Models**\n\n"
+                    "VIRA uses 7 different Gemini models to maximize free-tier capacity "
+                    "(~140 requests/day total). Today's quota has been fully used.\n\n"
+                    "**Quotas reset at:** midnight Pacific Time (~1:30 AM IST)\n\n"
+                    "Please come back tomorrow — everything will work normally!"
+                )
+                sources = []
+                model_used = ""
+                elapsed = 0
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "quota" in err_str.lower() or "RESOURCE_EXHAUSTED" in err_str:
                     answer = (
-                        "**API Rate Limit Reached**\n\n"
-                        "The free Gemini API has a daily request limit. "
-                        "This typically resets at midnight Pacific Time (around 1:30 PM IST).\n\n"
-                        "**What you can do:**\n"
-                        "- Wait a few minutes and try again\n"
-                        "- If the daily limit is hit, please try again tomorrow\n"
-                        "- For production use, consider upgrading to a paid API tier"
+                        "**Rate Limit Hit**\n\n"
+                        "Switching to the next available model... "
+                        "Please send your question again."
                     )
                 else:
-                    answer = f"I encountered an error: {err_str[:200]}\n\nPlease try rephrasing your question."
+                    answer = f"I encountered an error: {err_str[:200]}\n\nPlease try rephrasing."
                 sources = []
+                model_used = ""
                 elapsed = 0
 
         st.markdown(answer)
 
         if sources:
-            with st.expander(f"View {len(sources)} regulation excerpts used  ({elapsed}s)", expanded=False):
+            expander_label = f"View {len(sources)} regulation excerpts used  ({elapsed}s)  |  {model_used}"
+            with st.expander(expander_label, expanded=False):
                 for i, src in enumerate(sources, 1):
                     excerpt = src["content"][:450] + ("..." if len(src["content"]) > 450 else "")
                     st.markdown(f"""
@@ -396,6 +428,7 @@ if question and question.strip():
         "role": "assistant",
         "content": answer,
         "sources": sources,
+        "model_used": model_used,
     })
 
     st.session_state.chat_history.append((q, answer))

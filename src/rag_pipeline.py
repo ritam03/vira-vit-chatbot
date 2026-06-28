@@ -1,30 +1,26 @@
 """
-VIRA — VIT Intelligent Regulation Assistant
-RAG Pipeline Module
+VIRA - VIT Intelligent Regulation Assistant
+RAG Pipeline Module with Model Cascade
 
-This is the BRAIN of VIRA. It orchestrates the full Retrieval-Augmented Generation flow:
+This is the BRAIN of VIRA. It orchestrates the full RAG flow:
   1. Load the pre-built vector store
   2. Receive a user question
   3. Find the most relevant regulation chunks
-  4. Send chunks + question to Gemini
+  4. Send chunks + question to the best available Gemini model
   5. Return the answer with citations
 
-LEARNING CONCEPT — What is RAG?
-Traditional chatbots (like base ChatGPT) only know what they were trained on.
-RAG solves this by:
-  - Storing your specific documents (VIT regulations) in a searchable database
-  - At query time, FINDING the relevant pieces and GIVING them to the LLM
-  - The LLM then answers based on YOUR documents, not its training data
-This means:
-  ✅ Accurate, regulation-specific answers
-  ✅ No hallucinations about VIT-specific rules
-  ✅ Easy to update when regulations change (just re-ingest the new PDF)
+MODEL CASCADE SYSTEM:
+  Free tier gives ~20 requests/day per model.
+  By using 7 models in a cascade, we get ~140 requests/day total.
+  If a model is rate-limited (429), VIRA automatically falls back
+  to the next model — transparent to the user.
 """
 
 import os
+import time
 from pathlib import Path
 from dotenv import load_dotenv
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
@@ -34,112 +30,166 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from src.prompts import CHAT_PROMPT, CONDENSE_QUESTION_PROMPT
 
-# Load environment variables from .env file
 load_dotenv()
 
-# ─── Constants ────────────────────────────────────────────────────────────────
+# ── Constants ──────────────────────────────────────────────────────────────────
 VECTORSTORE_PATH = str(Path(__file__).parent.parent / "vectorstore" / "chroma_db")
-EMBEDDING_MODEL = "models/gemini-embedding-001"  # Google's free embedding model
-LLM_MODEL = "gemini-2.5-flash"                    # Best available model with active quota
-TOP_K_RESULTS = 5  # How many regulation chunks to retrieve per query
+EMBEDDING_MODEL  = "models/gemini-embedding-001"
+TOP_K_RESULTS    = 5
+
+# ── Model Cascade ──────────────────────────────────────────────────────────────
+# Ordered from best quality → lightest fallback.
+# Each model has its OWN independent free-tier quota (~20 RPD each).
+# Total capacity: 7 models x 20 RPD = ~140 requests/day, all free.
+MODEL_CASCADE = [
+    "gemini-2.5-flash",       # Best quality  — 20 RPD free
+    "gemini-3.5-flash",       # Latest series — 20 RPD free
+    "gemini-2.5-flash-lite",  # Lighter 2.5   — 20 RPD free
+    "gemini-2.0-flash",       # Proven stable — 20 RPD free
+    "gemini-2.0-flash-lite",  # Lighter 2.0   — 20 RPD free
+    "gemini-3.1-flash-lite",  # Lightweight   — 20 RPD free
+    "gemini-flash-latest",    # Alias fallback — 20 RPD free
+]
+
+# ── Session-level quota tracker ────────────────────────────────────────────────
+# Tracks which models have hit their DAILY limit in this session.
+# Format: { "model_name": "daily" | "minute" }
+# "daily"  = skip entirely for today
+# "minute" = wait a bit then retry
+_exhausted_models: dict = {}
+
+
+def _is_quota_error(error: Exception) -> bool:
+    """Check if an exception is a rate-limit/quota error."""
+    err = str(error)
+    return "429" in err or "RESOURCE_EXHAUSTED" in err or "quota" in err.lower()
+
+
+def _is_daily_exhausted(error: Exception) -> bool:
+    """Check if the error is a DAILY quota (not just per-minute)."""
+    err = str(error)
+    return (
+        "GenerateRequestsPerDayPerProjectPerModel" in err
+        or ("limit: 20" in err and "PerDay" in err)
+        or ("limit: 0" in err)  # limit=0 means key has no quota for this model
+    )
+
+
+def _get_available_model(api_key: str) -> Optional[str]:
+    """
+    Find the first model in the cascade that isn't daily-exhausted.
+    Returns None if all models are exhausted.
+    """
+    for model in MODEL_CASCADE:
+        if _exhausted_models.get(model) == "daily":
+            continue  # Skip models with daily quota exhausted
+        return model
+    return None
+
+
+def _create_llm(model: str, api_key: str) -> ChatGoogleGenerativeAI:
+    """Create a LangChain LLM instance for the given model."""
+    return ChatGoogleGenerativeAI(
+        model=model,
+        google_api_key=api_key,
+        temperature=0.1,
+        max_output_tokens=2048,
+    )
+
+
+def _build_chain(llm: ChatGoogleGenerativeAI, retriever) -> object:
+    """Assemble the LangChain RAG pipeline for a given LLM."""
+    history_aware_retriever = create_history_aware_retriever(
+        llm, retriever, CONDENSE_QUESTION_PROMPT
+    )
+    answer_chain = create_stuff_documents_chain(llm, CHAT_PROMPT)
+    return create_retrieval_chain(history_aware_retriever, answer_chain)
 
 
 class VIRAEngine:
     """
-    The main RAG engine for VIRA.
+    The main RAG engine for VIRA with automatic model cascade.
 
-    This class encapsulates the entire chatbot logic. You create one instance
-    at startup and reuse it for all conversations (efficient — avoids reloading).
+    When a model hits its rate limit, the engine automatically
+    falls back to the next model in MODEL_CASCADE — no user action needed.
     """
 
     def __init__(self):
-        """Initialize the RAG engine: load embeddings, vector store, and LLM."""
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
+        """Initialize the RAG engine: load embeddings and vector store."""
+        self.api_key = os.getenv("GOOGLE_API_KEY")
+        if not self.api_key:
             raise ValueError(
                 "[ERROR] GOOGLE_API_KEY not found! "
-                "Please create a .env file with your API key. "
-                "See .env.example for the format."
+                "Please create a .env file with your API key."
             )
 
-        print("[*] Initializing VIRA Engine...")
+        print("[*] Initializing VIRA Engine (with model cascade)...")
 
-        # STEP 1: Initialize the Embedding Model
-        # Embeddings convert text → numbers (vectors) so we can do math on meaning
+        # Load embedding model
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model=EMBEDDING_MODEL,
-            google_api_key=api_key
+            google_api_key=self.api_key
         )
         print("  [OK] Embedding model loaded")
 
-        # STEP 2: Load the Vector Store (pre-built ChromaDB)
-        # This is where all the regulation chunks live, as searchable vectors
+        # Load vector store
         if not Path(VECTORSTORE_PATH).exists():
             raise FileNotFoundError(
                 "[ERROR] Vector store not found! "
-                "Please run: python scripts/ingest.py\n"
-                "This will process the PDF and build the vector database."
+                "Please run: python scripts/ingest.py"
             )
 
         self.vectorstore = Chroma(
             persist_directory=VECTORSTORE_PATH,
             embedding_function=self.embeddings,
-            collection_name="vit_regulations"  # Must match what ingest.py used
+            collection_name="vit_regulations"
         )
-        print(f"  [OK] Vector store loaded ({self.vectorstore._collection.count()} chunks)")
+        chunk_count = self.vectorstore._collection.count()
+        print(f"  [OK] Vector store loaded ({chunk_count} chunks)")
 
-        # STEP 3: Create the Retriever
-        # The retriever is the "search engine" part — given a question, find top-K chunks
+        # Create retriever
         self.retriever = self.vectorstore.as_retriever(
-            search_type="mmr",  # MMR = Maximum Marginal Relevance (diversity-aware retrieval)
-            search_kwargs={
-                "k": TOP_K_RESULTS,
-                "fetch_k": TOP_K_RESULTS * 3,  # Fetch 3x more, then pick diverse ones
-            }
+            search_type="mmr",
+            search_kwargs={"k": TOP_K_RESULTS, "fetch_k": TOP_K_RESULTS * 3},
         )
         print("  [OK] Retriever configured (MMR, top-5)")
 
-        # STEP 4: Initialize the LLM (Gemini 1.5 Flash)
-        self.llm = ChatGoogleGenerativeAI(
-            model=LLM_MODEL,
-            google_api_key=api_key,
-            temperature=0.1,      # Low temperature = more factual, less creative
-            max_output_tokens=2048,
-        )
-        print("  [OK] Gemini 2.0 Flash LLM initialized")
+        # Find the best available model to start with
+        start_model = _get_available_model(self.api_key)
+        if not start_model:
+            raise RuntimeError("All models in the cascade are exhausted. Try again tomorrow.")
 
-        # STEP 5: Build the RAG Chain
-        # This is the "assembly line" that connects retriever + LLM + prompts
-        self._build_chain()
-        print("  [OK] RAG chain assembled")
+        self.current_model = start_model
+        self.llm = _create_llm(self.current_model, self.api_key)
+        self.rag_chain = _build_chain(self.llm, self.retriever)
+
+        print(f"  [OK] LLM ready: {self.current_model}")
+        print(f"  [OK] Cascade: {' -> '.join(MODEL_CASCADE)}")
         print("[*] VIRA Engine ready!")
 
-    def _build_chain(self):
+    def _switch_to_next_model(self, failed_model: str, is_daily: bool) -> bool:
         """
-        Assemble the LangChain RAG pipeline.
+        Mark failed_model as exhausted and rebuild the chain with the next model.
+        Returns True if a fallback model was found, False if all are exhausted.
 
-        The pipeline has two main stages:
-        Stage A — History-Aware Retriever:
-            If user asks "What about arrears?", this stage uses the chat history
-            to rephrase it as "What are the arrear regulations at VIT?" before
-            searching the vector store. This makes follow-up questions work correctly.
-
-        Stage B — Retrieval + Answer Chain:
-            Takes the retrieved chunks, formats them into the system prompt,
-            and asks Gemini to generate the answer.
+        For per-minute limits: we mark the model as exhausted and move on.
+        Within seconds the quota resets, but to keep the user experience smooth
+        we skip to the next model immediately rather than making the user wait.
         """
-        # Stage A: Rephrase follow-up questions using conversation history
-        history_aware_retriever = create_history_aware_retriever(
-            self.llm,
-            self.retriever,
-            CONDENSE_QUESTION_PROMPT
-        )
+        # Always mark as "daily" so we don't loop back to same model this session
+        _exhausted_models[failed_model] = "daily"
+        limit_type = "daily limit" if is_daily else "minute limit (skipping)"
+        print(f"  [FALLBACK] {failed_model} hit {limit_type}, trying next...")
 
-        # Stage B: Combine retrieved docs with the question → answer
-        answer_chain = create_stuff_documents_chain(self.llm, CHAT_PROMPT)
+        next_model = _get_available_model(self.api_key)
+        if not next_model:
+            return False
 
-        # Full pipeline: question → retrieve → answer
-        self.rag_chain = create_retrieval_chain(history_aware_retriever, answer_chain)
+        self.current_model = next_model
+        self.llm = _create_llm(self.current_model, self.api_key)
+        self.rag_chain = _build_chain(self.llm, self.retriever)
+        print(f"  [FALLBACK] Now using: {self.current_model}")
+        return True
 
     def chat(
         self,
@@ -148,49 +198,72 @@ class VIRAEngine:
     ) -> dict:
         """
         Process a student question and return VIRA's answer.
-
-        Args:
-            question: The student's question as a string
-            chat_history: List of (human_message, ai_message) tuples from previous turns
+        Automatically falls back through the model cascade on rate limits.
 
         Returns:
             dict with keys:
-              - 'answer': VIRA's response text
-              - 'sources': List of regulation chunks that were used
+              - 'answer':       VIRA's response text
+              - 'sources':      List of regulation chunks used
+              - 'model_used':   Which Gemini model answered the question
         """
-        # Convert history from our simple format to LangChain's message format
+        # Convert history to LangChain format
         formatted_history = []
         if chat_history:
             for human_msg, ai_msg in chat_history:
                 formatted_history.append(HumanMessage(content=human_msg))
                 formatted_history.append(AIMessage(content=ai_msg))
 
-        # Run the RAG chain
-        result = self.rag_chain.invoke({
-            "input": question,
-            "chat_history": formatted_history
-        })
+        payload = {"input": question, "chat_history": formatted_history}
 
-        # Extract source documents for citation display
-        sources = []
-        if "context" in result:
-            for doc in result["context"]:
-                sources.append({
-                    "content": doc.page_content,
-                    "source": doc.metadata.get("source", "VIT Regulations"),
-                    "chunk_id": doc.metadata.get("chunk_id", "N/A"),
-                })
+        # Try models in cascade order until one succeeds
+        attempts = 0
+        last_error = None
 
-        return {
-            "answer": result["answer"],
-            "sources": sources,
-        }
+        while attempts < len(MODEL_CASCADE):
+            try:
+                result = self.rag_chain.invoke(payload)
+
+                # Success — extract sources and return
+                sources = []
+                if "context" in result:
+                    for doc in result["context"]:
+                        sources.append({
+                            "content":  doc.page_content,
+                            "source":   doc.metadata.get("source", "VIT Regulations"),
+                            "chunk_id": doc.metadata.get("chunk_id", "N/A"),
+                        })
+
+                return {
+                    "answer":     result["answer"],
+                    "sources":    sources,
+                    "model_used": self.current_model,
+                }
+
+            except Exception as e:
+                last_error = e
+                if _is_quota_error(e):
+                    is_daily = _is_daily_exhausted(e)
+                    switched = self._switch_to_next_model(self.current_model, is_daily)
+                    if switched:
+                        attempts += 1
+                        continue  # Retry with new model immediately
+                    else:
+                        # All models exhausted
+                        break
+                else:
+                    # Non-quota error — don't cascade, raise it
+                    raise
+
+        # All models failed
+        raise ResourceWarning(
+            "All free-tier Gemini models have reached their daily limit "
+            f"({len(MODEL_CASCADE)} models tried). "
+            "Quotas reset at midnight Pacific Time (~1:30 AM IST). "
+            "Please try again tomorrow."
+        )
 
 
-# ─── Singleton Pattern ────────────────────────────────────────────────────────
-# We use a singleton to avoid reloading the model on every Streamlit rerun.
-# Streamlit reruns the script on every interaction, but @st.cache_resource
-# (used in app.py) keeps this instance alive in memory.
+# ── Singleton ──────────────────────────────────────────────────────────────────
 _engine_instance = None
 
 def get_engine() -> VIRAEngine:
