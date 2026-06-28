@@ -1,0 +1,17 @@
+# ─── Core LLM & RAG ───────────────────────────────────────────
+langchain==0.3.25
+langchain-google-genai==2.1.4
+langchain-community==0.3.24
+langchain-chroma==0.2.4
+
+# ─── Vector Store (must be >=1.0.9 for langchain-chroma 0.2.4) ────────────
+chromadb>=1.0.9
+
+# ─── PDF Processing ───────────────────────────────────────────
+pymupdf==1.25.5
+
+# ─── Frontend ─────────────────────────────────────────────────
+streamlit==1.45.1
+
+# ─── Utilities ────────────────────────────────────────────────
+python-dotenv==1.1.0

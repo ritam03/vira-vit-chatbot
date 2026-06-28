@@ -1,0 +1,31 @@
+# Python virtual environment
+venv/
+.venv/
+
+# Environment secrets — NEVER commit your API key!
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# NOTE: vectorstore/chroma_db IS committed to GitHub for deployment.
+# It contains the pre-built embeddings (no API key needed to read them).
+# The data/vit_regulations.pdf is excluded for file size reasons.
+data/vit_regulations.pdf
