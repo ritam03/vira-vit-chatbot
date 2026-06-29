@@ -44,8 +44,12 @@ supabase = get_supabase()
 cookies = CookieController()
 
 # ── Identity Management ───────────────────────────────────────────────────────
-vira_user_id = cookies.get('vira_user_id')
-vira_guest_id = cookies.get('vira_guest_id')
+all_cookies = cookies.getAll()
+if all_cookies is None:
+    all_cookies = {}
+
+vira_user_id = all_cookies.get('vira_user_id')
+vira_guest_id = all_cookies.get('vira_guest_id')
 
 is_logged_in = bool(vira_user_id)
 limit = USER_LIMIT if is_logged_in else GUEST_LIMIT
