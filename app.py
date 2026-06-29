@@ -272,20 +272,6 @@ SAMPLE_QUESTIONS = [
     "How many exam attempts do I get?",
 ]
 
-# ── Share URLs ─────────────────────────────────────────────────────────────────
-_WA_TEXT = urllib.parse.quote(
-    "🎓 Ask anything about VIT Academic Regulations instantly!\n\n"
-    "VIRA is a free AI chatbot — get answers with regulation citations, "
-    "no login needed.\n\n"
-    "Try it: https://vitchat.streamlit.app"
-)
-WHATSAPP_URL = f"https://api.whatsapp.com/send?text={_WA_TEXT}"
-
-REDDIT_URL = (
-    "https://www.reddit.com/submit"
-    "?url=https%3A%2F%2Fvitchat.streamlit.app"
-    "&title=VIRA+%E2%80%94+Free+AI+chatbot+for+VIT+Academic+Regulations+%28instant+answers+with+citations%29"
-)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -374,16 +360,7 @@ with st.sidebar:
 
     st.divider()
 
-    # Share section
-    st.markdown("**Share VIRA**")
-    st.caption("Help fellow VIT students discover VIRA")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.link_button("💬 WhatsApp", WHATSAPP_URL, use_container_width=True)
-    with col2:
-        st.link_button("🔗 Reddit", REDDIT_URL, use_container_width=True)
 
-    st.divider()
 
     st.markdown("""
     <div style="font-size:0.72rem; color:rgba(255,255,255,0.35); text-align:center;">
