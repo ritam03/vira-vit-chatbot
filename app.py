@@ -232,6 +232,17 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+**Welcome to VIRA! Ask me anything about:**
+- **Attendance** requirements and consequences
+- **Grading** and CGPA calculation
+- **Examination** rules and debarment
+- **Course re-registration** and arrears
+- **Scholarships** and awards
+
+I'll always tell you which regulation my answer is based on, or honestly flag if something isn't covered.
+""")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
