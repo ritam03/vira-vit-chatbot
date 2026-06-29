@@ -43,6 +43,11 @@ ADMIN_SECRET     = os.environ.get("ADMIN_SECRET", "VITADMIN")
 supabase = get_supabase()
 cookies = CookieController()
 
+# HACK: Bypass streamlit-cookies-controller bug where set() crashes if __cookies is None
+if getattr(cookies, '_CookieController__cookies', None) is None:
+    setattr(cookies, '_CookieController__cookies', {})
+
+
 # ── Identity Management ───────────────────────────────────────────────────────
 all_cookies = cookies.getAll()
 if all_cookies is None:
