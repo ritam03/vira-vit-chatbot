@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIRA — VIT Intelligent Regulation Assistant</title>
+
+  <!-- ── SEO ── -->
+  <meta name="description"
+        content="Free AI chatbot for VIT Academic Regulations. Ask anything about attendance, CGPA, exams, re-registration, scholarships — get instant answers with regulation citations." />
+  <meta name="keywords"
+        content="VIT, VIT Vellore, academic regulations, attendance, CGPA, chatbot, AI, regulations" />
+  <link rel="canonical" href="https://vitchat.streamlit.app" />
+
+  <!-- ── Open Graph (Facebook, WhatsApp, Discord, LinkedIn) ── -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:url"         content="https://vitchat.streamlit.app" />
+  <meta property="og:title"       content="VIRA — VIT Intelligent Regulation Assistant" />
+  <meta property="og:description"
+        content="Free AI chatbot for VIT Academic Regulations. Instant answers about attendance, CGPA, exams & more — with citations. No login needed." />
+  <meta property="og:image"
+        content="https://ritam03.github.io/vira-vit-chatbot/preview.png" />
+  <meta property="og:image:width"  content="1024" />
+  <meta property="og:image:height" content="1024" />
+  <meta property="og:site_name"   content="VIRA" />
+  <meta property="og:locale"      content="en_IN" />
+
+  <!-- ── Twitter / X Card ── -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="VIRA — VIT Intelligent Regulation Assistant" />
+  <meta name="twitter:description"
+        content="Free AI chatbot for VIT Academic Regulations. Instant answers about attendance, CGPA, exams & more." />
+  <meta name="twitter:image"
+        content="https://ritam03.github.io/vira-vit-chatbot/preview.png" />
+
+  <!-- ── Instant redirect ── -->
+  <meta http-equiv="refresh" content="2; url=https://vitchat.streamlit.app" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0F0F1A;
+      color: #E8E8F0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .card {
+      max-width: 520px;
+      width: 100%;
+    }
+
+    .logo {
+      font-size: 4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #A855F7, #3B82F6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -2px;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.55);
+      margin-bottom: 2rem;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(168,85,247,0.2);
+      border-top-color: #A855F7;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1.5rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .redirect-text {
+      font-size: 0.88rem;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 1.5rem;
+    }
+
+    .cta-btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #6C3EE8, #A855F7);
+      color: white;
+      text-decoration: none;
+      padding: 0.75rem 2rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: opacity 0.2s;
+      box-shadow: 0 8px 30px rgba(108,62,232,0.4);
+    }
+
+    .cta-btn:hover { opacity: 0.88; }
+
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      justify-content: center;
+      margin-top: 2rem;
+    }
+
+    .pill {
+      background: rgba(108,62,232,0.15);
+      border: 1px solid rgba(108,62,232,0.3);
+      border-radius: 50px;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.78rem;
+      color: #C4B5FD;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">VIRA</div>
+    <div class="subtitle">VIT Intelligent Regulation Assistant</div>
+
+    <div class="spinner"></div>
+    <p class="redirect-text">Redirecting to the app automatically…</p>
+
+    <a class="cta-btn" href="https://vitchat.streamlit.app">
+      Open VIRA →
+    </a>
+
+    <div class="features">
+      <span class="pill">📋 Attendance rules</span>
+      <span class="pill">📊 CGPA calculation</span>
+      <span class="pill">📝 Exam policies</span>
+      <span class="pill">🔄 Re-registration</span>
+      <span class="pill">🏅 Scholarships</span>
+      <span class="pill">✅ Free · No login</span>
+    </div>
+  </div>
+</body>
+</html>
