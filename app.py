@@ -7,7 +7,6 @@ Run with:
 """
 
 import streamlit as st
-import time
 import sys
 import io
 
@@ -101,25 +100,6 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* Source citation box */
-    .source-box {
-        background: rgba(108, 62, 232, 0.1);
-        border: 1px solid rgba(108, 62, 232, 0.3);
-        border-radius: 10px;
-        padding: 0.75rem 1rem;
-        margin-bottom: 0.5rem;
-        font-size: 0.82rem;
-        color: rgba(232, 232, 240, 0.8);
-    }
-
-    .source-title {
-        font-weight: 600;
-        color: #A855F7;
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-bottom: 0.4rem;
-    }
 
     /* Chat message styling */
     .stChatMessage {
@@ -203,7 +183,7 @@ st.markdown("""
 <div class="vira-header">
     <div class="vira-title">VIRA</div>
     <div class="vira-subtitle">VIT Intelligent Regulation Assistant</div>
-    <div class="vira-badge">Powered by Google Gemini 2.5 &middot; VIT Academic Regulations</div>
+    <div class="vira-badge">Powered by Google Gemini AI &middot; VIT Academic Regulations 2024</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -249,6 +229,20 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.chat_history = []
         st.rerun()
+
+    st.divider()
+
+    st.markdown("**Read the Source Document**")
+    st.markdown("""
+    <a href="https://drive.google.com/drive/folders/1qYHKwxWHTZ7qfQvVnongoCXuCQmNKIDg" target="_blank"
+       style="display:flex;align-items:center;gap:0.5rem;background:rgba(108,62,232,0.12);
+              border:1px solid rgba(108,62,232,0.3);border-radius:10px;padding:0.6rem 0.85rem;
+              color:#C4B5FD;font-size:0.82rem;font-weight:500;text-decoration:none;
+              transition:background 0.2s;">
+        <span style="font-size:1rem;">&#128196;</span>
+        VIT Academic Regulations PDF
+    </a>
+    """, unsafe_allow_html=True)
 
     st.divider()
 
@@ -332,21 +326,7 @@ for msg in st.session_state.messages:
     with st.chat_message(role, avatar=avatar):
         st.markdown(msg["content"])
 
-        # Show source citations + model badge for assistant messages
-        if role == "assistant" and msg.get("sources"):
-            model_label = msg.get("model_used", "")
-            expander_title = f"View {len(msg['sources'])} regulation excerpts used"
-            if model_label:
-                expander_title += f"  |  {model_label}"
-            with st.expander(expander_title, expanded=False):
-                for i, src in enumerate(msg["sources"], 1):
-                    excerpt = src["content"][:450] + ("..." if len(src["content"]) > 450 else "")
-                    st.markdown(f"""
-<div class="source-box">
-    <div class="source-title">Source {i} &mdash; {src['source']}</div>
-    {excerpt}
-</div>
-""", unsafe_allow_html=True)
+        # No sources expander — regulation basis is cited inline in the answer
 
 
 # === CHAT INPUT ===
@@ -373,17 +353,14 @@ if question and question.strip():
     # Generate and show VIRA's response
     with st.chat_message("assistant", avatar="🎓"):
         with st.spinner("Searching VIT regulations..."):
-            start_t = time.time()
             try:
                 result = engine.chat(question=q, chat_history=st.session_state.chat_history)
                 answer = result["answer"]
-                sources = result["sources"]
                 model_used = result.get("model_used", "")
-                elapsed = round(time.time() - start_t, 1)
                 # Keep sidebar model indicator current
                 if model_used:
                     st.session_state["active_model"] = model_used
-            except ResourceWarning as e:
+            except ResourceWarning:
                 # All 7 models in the cascade are exhausted for the day
                 answer = (
                     "**Daily Limit Reached Across All Models**\n\n"
@@ -392,9 +369,6 @@ if question and question.strip():
                     "**Quotas reset at:** midnight Pacific Time (~1:30 AM IST)\n\n"
                     "Please come back tomorrow — everything will work normally!"
                 )
-                sources = []
-                model_used = ""
-                elapsed = 0
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "quota" in err_str.lower() or "RESOURCE_EXHAUSTED" in err_str:
@@ -405,30 +379,13 @@ if question and question.strip():
                     )
                 else:
                     answer = f"I encountered an error: {err_str[:200]}\n\nPlease try rephrasing."
-                sources = []
-                model_used = ""
-                elapsed = 0
 
         st.markdown(answer)
-
-        if sources:
-            expander_label = f"View {len(sources)} regulation excerpts used  ({elapsed}s)  |  {model_used}"
-            with st.expander(expander_label, expanded=False):
-                for i, src in enumerate(sources, 1):
-                    excerpt = src["content"][:450] + ("..." if len(src["content"]) > 450 else "")
-                    st.markdown(f"""
-<div class="source-box">
-    <div class="source-title">Source {i} &mdash; {src['source']}</div>
-    {excerpt}
-</div>
-""", unsafe_allow_html=True)
 
     # Save to history
     st.session_state.messages.append({
         "role": "assistant",
         "content": answer,
-        "sources": sources,
-        "model_used": model_used,
     })
 
     st.session_state.chat_history.append((q, answer))
