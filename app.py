@@ -20,45 +20,41 @@ if sys.stderr.encoding != 'utf-8':
 st.set_page_config(
     page_title="VIRA - VIT Regulation Assistant",
     page_icon="🎓",
-    layout="centered",
-    initial_sidebar_state="collapsed",  # Collapsed by default = better mobile UX
+    layout="wide",               # Premium wide layout for PC/Laptop
+    initial_sidebar_state="expanded",
     menu_items={
         "Get Help": "https://vit.ac.in",
         "About": "VIRA - VIT Intelligent Regulation Assistant v1.0",
     }
 )
 
-# --- Custom CSS (Mobile-first responsive) ---
+# --- Custom CSS ---
+# Desktop-first design. @media queries handle mobile as an enhancement.
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    footer    {visibility: hidden;}
+    header    {visibility: hidden;}
 
-    /* ── Main container: full-width on mobile, capped on desktop ── */
+    /* ── Main container ── */
     .main .block-container {
-        padding-top: 0.75rem;
-        padding-bottom: 5rem;   /* room for fixed chat input */
-        padding-left: 0.75rem;
-        padding-right: 0.75rem;
-        max-width: 800px;
-        margin: 0 auto;
+        padding-top: 1rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
     }
 
     /* ── Hero header ── */
     .vira-header {
         background: linear-gradient(135deg, #6C3EE8 0%, #A855F7 50%, #3B82F6 100%);
-        border-radius: 16px;
-        padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem);
-        margin-bottom: 1.25rem;
+        border-radius: 20px;
+        padding: 2.5rem 2rem;
+        margin-bottom: 1.5rem;
         text-align: center;
-        box-shadow: 0 12px 40px rgba(108, 62, 232, 0.35);
+        box-shadow: 0 20px 60px rgba(108, 62, 232, 0.3);
         position: relative;
         overflow: hidden;
     }
@@ -78,7 +74,7 @@ st.markdown("""
     }
 
     .vira-title {
-        font-size: clamp(2rem, 8vw, 3rem);
+        font-size: 2.8rem;
         font-weight: 700;
         color: white;
         margin: 0;
@@ -87,9 +83,9 @@ st.markdown("""
     }
 
     .vira-subtitle {
-        font-size: clamp(0.85rem, 3vw, 1rem);
+        font-size: 1rem;
         color: rgba(255,255,255,0.85);
-        margin-top: 0.4rem;
+        margin-top: 0.5rem;
         font-weight: 400;
     }
 
@@ -99,62 +95,24 @@ st.markdown("""
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.3);
         border-radius: 50px;
-        padding: 0.3rem 0.85rem;
-        font-size: clamp(0.68rem, 2.5vw, 0.8rem);
-        color: white;
-        margin-top: 0.75rem;
-        font-weight: 500;
-        line-height: 1.4;
-    }
-
-    /* ── Drive link pill below header ── */
-    .drive-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        background: rgba(168, 85, 247, 0.12);
-        border: 1px solid rgba(168, 85, 247, 0.3);
-        border-radius: 50px;
-        padding: 0.35rem 0.9rem;
+        padding: 0.3rem 1rem;
         font-size: 0.8rem;
-        color: #C4B5FD;
-        text-decoration: none;
+        color: white;
+        margin-top: 1rem;
         font-weight: 500;
-        margin-top: 0.6rem;
-        transition: background 0.2s;
     }
-    .drive-link:hover { background: rgba(168, 85, 247, 0.22); }
 
     /* ── Chat messages ── */
     .stChatMessage {
-        animation: fadeUp 0.25s ease-out;
+        animation: fadeUp 0.3s ease-out;
     }
 
     @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(6px); }
+        from { opacity: 0; transform: translateY(8px); }
         to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ── Chat input: bigger tap target on mobile ── */
-    .stChatInput textarea {
-        font-size: 1rem !important;
-        padding: 0.75rem 1rem !important;
-        border-radius: 14px !important;
-        min-height: 48px !important;
-    }
-
-    /* ── Buttons: minimum 48px tall for thumb-friendliness ── */
-    .stButton > button {
-        min-height: 48px;
-        font-size: 0.88rem !important;
-        border-radius: 12px !important;
-        padding: 0.5rem 0.75rem !important;
-        line-height: 1.3 !important;
-        white-space: normal !important;   /* wrap long text on small screens */
-        word-break: break-word !important;
-    }
-
-    /* ── Sidebar ── */
+    /* ── Stat card in sidebar ── */
     .stat-card {
         background: rgba(108, 62, 232, 0.12);
         border: 1px solid rgba(108, 62, 232, 0.25);
@@ -163,11 +121,13 @@ st.markdown("""
         margin-bottom: 0.5rem;
         text-align: center;
     }
+
     .stat-value {
         font-size: 1.8rem;
         font-weight: 700;
         color: #A855F7;
     }
+
     .stat-label {
         font-size: 0.72rem;
         color: rgba(255,255,255,0.45);
@@ -176,21 +136,60 @@ st.markdown("""
 
     hr { border-color: rgba(255,255,255,0.07) !important; }
 
-    /* ── Welcome bullets: more readable on small screens ── */
-    .stChatMessage p, .stChatMessage li {
-        font-size: clamp(0.9rem, 3vw, 1rem);
-        line-height: 1.65;
+    /* ════════════════════════════════════════
+       MOBILE ADAPTATIONS  (≤ 768px)
+       Only these rules change on phones.
+       Everything above stays premium on desktop.
+    ════════════════════════════════════════ */
+    @media (max-width: 768px) {
+
+        /* Tighten container padding */
+        .main .block-container {
+            padding-left: 0.6rem;
+            padding-right: 0.6rem;
+            padding-bottom: 4.5rem;
+        }
+
+        /* Scale header down gracefully */
+        .vira-header {
+            border-radius: 14px;
+            padding: 1.5rem 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .vira-title    { font-size: 2rem; }
+        .vira-subtitle { font-size: 0.88rem; }
+        .vira-badge    { font-size: 0.72rem; padding: 0.28rem 0.75rem; }
+
+        /* Buttons: 48px min tap target, text wraps */
+        .stButton > button {
+            min-height: 48px !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            line-height: 1.35 !important;
+            font-size: 0.88rem !important;
+        }
+
+        /* Chat input: bigger on mobile */
+        .stChatInputContainer textarea {
+            font-size: 1rem !important;
+            min-height: 48px !important;
+        }
+
+        /* Readable text in chat bubbles */
+        .stChatMessage p,
+        .stChatMessage li {
+            font-size: 0.95rem;
+            line-height: 1.65;
+        }
     }
 
-    /* ── Responsive: phones < 480px ── */
     @media (max-width: 480px) {
+        .vira-title    { font-size: 1.7rem; }
+        .vira-header   { border-radius: 10px; }
         .main .block-container {
-            padding-left: 0.5rem;
-            padding-right: 0.5rem;
-        }
-        .vira-header {
-            border-radius: 12px;
-            margin-bottom: 1rem;
+            padding-left: 0.4rem;
+            padding-right: 0.4rem;
         }
     }
 </style>
@@ -232,10 +231,6 @@ st.markdown("""
     <div class="vira-title">VIRA</div>
     <div class="vira-subtitle">VIT Intelligent Regulation Assistant</div>
     <div class="vira-badge">Powered by Google Gemini AI &middot; VIT Academic Regulations 2026</div>
-    <br>
-    <a class="drive-link" href="https://drive.google.com/drive/folders/1qYHKwxWHTZ7qfQvVnongoCXuCQmNKIDg" target="_blank">
-        &#128196; Read the Official Regulations
-    </a>
 </div>
 """, unsafe_allow_html=True)
 
@@ -362,11 +357,13 @@ I'll always tell you which regulation my answer is based on, or honestly flag if
         """)
 
     st.markdown("**Try asking:**")
-    # Single column on mobile (Streamlit renders columns stacked on narrow screens)
+    # 2-column grid on desktop, gracefully stacks on mobile
+    cols = st.columns(2)
     for i, q in enumerate(SAMPLE_QUESTIONS):
-        if st.button(q, key=f"sample_{i}", use_container_width=True):
-            st.session_state.suggested_question = q
-            st.rerun()
+        with cols[i % 2]:
+            if st.button(q, key=f"sample_{i}", use_container_width=True):
+                st.session_state.suggested_question = q
+                st.rerun()
 
 
 # === DISPLAY CHAT HISTORY ===
@@ -377,7 +374,7 @@ for msg in st.session_state.messages:
     with st.chat_message(role, avatar=avatar):
         st.markdown(msg["content"])
 
-        # No sources expander — regulation basis is cited inline in the answer
+        # Regulation basis is cited inline in the answer — no separate expander needed
 
 
 # === CHAT INPUT ===
