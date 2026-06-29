@@ -44,19 +44,22 @@ supabase = get_supabase()
 cookies = CookieController()
 
 # ── Identity Management ───────────────────────────────────────────────────────
-# Wait a moment for cookies to load
-time.sleep(0.1)
 vira_user_id = cookies.get('vira_user_id')
 vira_guest_id = cookies.get('vira_guest_id')
 
 is_logged_in = bool(vira_user_id)
-identifier = vira_user_id if is_logged_in else vira_guest_id
 limit = USER_LIMIT if is_logged_in else GUEST_LIMIT
 
-if not vira_guest_id and not is_logged_in:
-    vira_guest_id = str(uuid.uuid4())
-    cookies.set('vira_guest_id', vira_guest_id)
+# If cookie hasn't loaded or doesn't exist, use a placeholder.
+# We DO NOT call cookies.set() here to prevent overwriting during rapid page reloads!
+if is_logged_in:
+    identifier = vira_user_id
+elif vira_guest_id:
     identifier = vira_guest_id
+else:
+    if "temp_guest_id" not in st.session_state:
+        st.session_state.temp_guest_id = str(uuid.uuid4())
+    identifier = st.session_state.temp_guest_id
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def sanitize_input(text: str) -> str:
@@ -364,6 +367,10 @@ question = user_input or default_input
 if question and question.strip():
     q = sanitize_input(question)
     if not q: st.stop()
+    
+    # If using the temporary ID, they truly had no cookie. Lock it in now.
+    if identifier == st.session_state.get("temp_guest_id"):
+        cookies.set('vira_guest_id', identifier)
 
     # User message
     with st.chat_message("user", avatar="👤"):
